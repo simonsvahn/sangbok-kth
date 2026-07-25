@@ -36,6 +36,32 @@ h1 .underrubrik{font-size:.68em;font-weight:normal;color:var(--blek)}
 #omrval{display:flex;gap:4px;margin-bottom:6px}
 .omrknapp{flex:1;text-align:center;padding:5px 4px;border:1px solid var(--gron);border-radius:8px;cursor:pointer;font-size:.82em;color:var(--gron)}
 .omrknapp.vald{background:var(--gron);color:#fff}
+.tomlista{padding:10px 2px;color:#666;font-size:.9em}
+#chips{display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap}
+.chip{padding:4px 9px;border:1px solid var(--gron);border-radius:99px;cursor:pointer;font-size:.78em;color:var(--gron);background:none;font-family:inherit}
+.chip.vald{background:var(--gron);color:#fff}
+.stjarna{color:#b5762a}
+.postknappar{display:flex;gap:6px;margin:8px 0 4px}
+.vyknapp{padding:5px 11px;border:1px solid var(--gron);border-radius:99px;background:none;color:var(--gron);cursor:pointer;font-size:.85em;font-family:inherit}
+.vyknapp.pa{background:var(--gron);color:#fff}
+.setrad{display:flex;align-items:center;gap:6px}
+.setrad .settxt{flex:1;cursor:pointer}
+.setop{border:1px solid var(--gron);background:none;color:var(--gron);border-radius:6px;cursor:pointer;padding:1px 7px;font-family:inherit}
+#kopia{position:fixed;inset:6% 5%;z-index:100;background:#fff;border:1px solid var(--gron);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 6px 30px rgba(0,0,0,.3)}
+#kopia textarea{flex:1;font:12px/1.4 ui-monospace,monospace;border:1px solid #ccc;border-radius:6px;padding:8px}
+#printroot{display:none}
+@media print{
+ body>#lista,body>#vy,#menyknapp,#remsa,#kopia{display:none!important}
+ #printroot{display:block;background:#fff;color:#000}
+ body{background:#fff}
+ .ptitel{text-align:center;padding-top:30vh;break-after:page;page-break-after:always}
+ .ptitel h1{font-size:26pt;margin:0 0 6pt}
+ .ptitel p{font-size:11pt;color:#333;margin:0}
+ .pvisa{break-inside:avoid-page;page-break-inside:avoid;margin:0 0 16pt}
+ .pvisa h2{font-size:14pt;margin:0 0 2pt}
+ .pmeta{font-size:9pt;color:#444;margin:0 0 6pt}
+ .pvisa pre{font:10.5pt/1.35 inherit;white-space:pre-wrap;margin:0}
+}
 #hogtid{width:100%;padding:7px;font:inherit;border:1px solid var(--blek);border-radius:6px;background:#fff;margin-bottom:6px}
 .tagg{display:inline-block;background:#e8e0cf;border-radius:9px;padding:1px 9px;font-size:.75em;margin:0 4px 4px 0;color:#5a5344}
 .songtitel{color:var(--rod);font-size:1.6em;margin:0 0 2px}
@@ -93,6 +119,7 @@ label{font-size:.85em;color:var(--blek)}.varnot{background:#fdf3d7;border:1px so
 <button id="menyknapp" type="button" title="Visa eller dölj låtlistan" aria-label="Visa eller dölj låtlistan" aria-expanded="true">☰</button>
 <div id="lista"><div id="listhuvud"><h1>Sångbok KTH<br><span class="underrubrik">KTH Maskin 1961–2013 &amp; klassiker · <span id="antal">…</span> visor</span></h1>
 <div id="omrval"><span class="omrknapp vald" data-omr="alla">Alla</span><span class="omrknapp" data-omr="kth">KTH Maskin</span><span class="omrknapp" data-omr="ovr">Övriga</span></div>
+<div id="chips"><button class="chip" id="chipfav" type="button">★ Favoriter</button><button class="chip" id="chiplista" type="button">Kvällens lista</button></div>
 <div id="filter"><select id="bokval"><option value="">Alla böcker</option><option value="1961">1961</option><option value="1975">1975</option><option value="1981">1981</option><option value="1985">1985</option><option value="1988">1988</option><option value="1991">1991</option><option value="1994">1994</option><option value="1995">1995</option><option value="2000">2000</option><option value="2004">2004</option><option value="2007">2007</option><option value="2010">2010</option><option value="2013">2013</option><option value="Phul 1991">Phul 1991</option></select>
 <select id="kapval"><option value="">Alla kapitel</option></select>
 <select id="melval"><option value="">Alla melodier</option></select>
@@ -101,6 +128,7 @@ label{font-size:.85em;color:var(--blek)}.varnot{background:#fdf3d7;border:1px so
 <label id="ackfilter"><input type="checkbox" id="bararack">endast med ackord ♪</label></div>
 <div id="poster"></div></div>
 <div id="vy"><p>Välj en sång i listan.</p></div>
+<div id="printroot"></div>
 <script>
 let S=null,CHO=null,KAP={},MELODIER=[];
 const poster=document.getElementById('poster'),vy=document.getElementById('vy'),sok=document.getElementById('sok'),bokval=document.getElementById('bokval'),kapval=document.getElementById('kapval'),melval=document.getElementById('melval'),bararack=document.getElementById('bararack'),hogtid=document.getElementById('hogtid');
@@ -114,6 +142,94 @@ let melVarianter=[];
 function valjMelodi(){melVarianter=melval.value===''?[]:(MELODIER[+melval.value]||['',[]])[1]}
 const harMelodi=(s,varianter)=>varianter.some(x=>s.mel.indexOf(x)>=0||s.v.some(v=>v.mel===x));
 let vald=-1,omr='alla';
+/* ---- favoriter och kvällens lista ----------------------------------------
+   Nycklas på s.id (stabil slug), aldrig på listindex: index ändras vid varje
+   bygge. Allt ligger i localStorage — därför finns säkerhetskopieringen. */
+const store={las(n,d){try{const v=localStorage.getItem('kthsangbok.'+n);return v?JSON.parse(v):d}catch{return d}},
+ spara(n,v){try{localStorage.setItem('kthsangbok.'+n,JSON.stringify(v))}catch{}}};
+let favs=new Set(store.las('favoriter',[]));
+let lista=store.las('lista',[]);
+let visaFav=false,visaLista=false;
+const idx=id=>S.findIndex(s=>s.id===id);
+function harFav(id){return favs.has(id)}
+function vaxlaFav(id){favs.has(id)?favs.delete(id):favs.add(id);
+ store.spara('favoriter',[...favs]);ritaChips();rita(sok.value)}
+function iLista(id){return lista.indexOf(id)>=0}
+function vaxlaLista(id){const i=lista.indexOf(id);i>=0?lista.splice(i,1):lista.push(id);
+ store.spara('lista',lista);ritaChips();rita(sok.value)}
+function flytta(id,steg){const i=lista.indexOf(id),j=i+steg;
+ if(i<0||j<0||j>=lista.length)return;
+ lista.splice(j,0,lista.splice(i,1)[0]);store.spara('lista',lista);rita(sok.value)}
+function ritaChips(){
+ const cf=document.getElementById('chipfav'),cl=document.getElementById('chiplista');
+ cf.textContent='★ Favoriter'+(favs.size?' ('+favs.size+')':'');
+ cf.classList.toggle('vald',visaFav);
+ cl.textContent='Kvällens lista'+(lista.length?' ('+lista.length+')':'');
+ cl.classList.toggle('vald',visaLista);}
+document.getElementById('chipfav').onclick=()=>{visaFav=!visaFav;if(visaFav)visaLista=false;
+ ritaChips();rita(sok.value)};
+document.getElementById('chiplista').onclick=()=>{visaLista=!visaLista;if(visaLista)visaFav=false;
+ ritaChips();rita(sok.value)};
+// Säkerhetskopieringen ligger INTE i filterhuvudet: på mobil är varje rad där
+// dyrbar (huvudet mätte 351 px med tre chips, 317 med två). Den dyker upp i
+// stället under favorit- och listvyerna, där den hör hemma.
+function kopiaknapp(){const d=document.createElement('div');
+ d.style.cssText='padding:10px 2px;display:flex;gap:6px;flex-wrap:wrap';
+ const p=document.createElement('button');p.className='chip';p.type='button';
+ p.textContent='🖨 Skriv ut häfte';p.onclick=skrivUt;d.appendChild(p);
+ const b=document.createElement('button');b.className='chip';b.type='button';
+ b.textContent='Säkerhetskopiera ★ och listan';b.onclick=visaKopia;
+ d.appendChild(b);poster.appendChild(d)}
+/* ---- häftesutskrift ------------------------------------------------------
+   Skriver det den aktuella vyn visar: kvällens lista i sin ordning, annars
+   träffarna i bokstavsordning. En KTH-visa finns i upp till elva tryckningar —
+   häftet tar den valda bokens version om ett bokfilter är på, annars den
+   nyaste. Vilken det blev står under varje titel, så bordet vet vad det sjunger. */
+let synliga=[];
+function nyasteVersion(s){
+ const ar=v=>{const m=(v.bok||'').match(/(\d{4})/);return m?+m[1]:0};
+ return s.v.reduce((b,v)=>ar(v)>=ar(b)?v:b,s.v[0])}
+function utskriftsVersion(s){
+ if(s.omr==='ovr')return s.v[0];
+ if(bokval.value){const v=s.v.find(v=>v.bok===bokval.value);if(v)return v}
+ return nyasteVersion(s)}
+function skrivUt(){
+ const ids=visaLista?lista.slice():synliga;
+ if(!ids.length){alert('Inget att skriva ut — vyn är tom.');return}
+ const rubrik=visaLista?'Kvällens lista':(visaFav?'Favoriter':'Urval ur sångboken');
+ const nu=new Date().toLocaleDateString('sv-SE');
+ let h=`<div class="ptitel"><h1>Sångbok KTH</h1><p>${rubrik} · ${ids.length} visor · ${nu}</p></div>`;
+ ids.forEach((id,n)=>{const i=idx(id);if(i<0)return;const s=S[i];const v=utskriftsVersion(s);
+  const kalla=s.omr==='ovr'?'Övriga':`${v.bok}${v.sida?' s.'+v.sida:(v.visa?' nr '+v.visa:'')}`;
+  const mel=s.mel.length?' · Melodi: '+esc(s.mel.join(', ')):'';
+  h+=`<section class="pvisa"><h2>${n+1}. ${esc(s.t)}</h2>`
+   +`<p class="pmeta">${esc(kalla)}${mel}</p>`
+   +`<pre>${esc(v.text||'(text saknas)')}</pre></section>`});
+ document.getElementById('printroot').innerHTML=h;
+ requestAnimationFrame(()=>window.print())}
+addEventListener('afterprint',()=>{document.getElementById('printroot').innerHTML=''});
+function visaKopia(){
+ if(document.getElementById('kopia'))return;
+ const d=document.createElement('div');d.id='kopia';
+ const data=JSON.stringify({favoriter:[...favs],lista},null,1);
+ d.innerHTML='<b>Säkerhetskopia</b><p style="margin:0;font-size:.85em">Favoriter och kvällens lista '
+  +'sparas bara i den här webbläsaren. Kopiera texten och spara den, eller klistra in en '
+  +'tidigare kopia och tryck Återställ.</p><textarea id="kopiatext"></textarea>'
+  +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+  +'<button class="vyknapp" id="kopiera">Markera allt</button>'
+  +'<button class="vyknapp" id="aterstall">Återställ ur rutan</button>'
+  +'<button class="vyknapp" id="stangkopia">Stäng</button></div>';
+ document.body.appendChild(d);
+ const ta=document.getElementById('kopiatext');ta.value=data;
+ document.getElementById('kopiera').onclick=()=>{ta.select();ta.setSelectionRange(0,99999)};
+ document.getElementById('stangkopia').onclick=()=>d.remove();
+ document.getElementById('aterstall').onclick=()=>{
+  try{const o=JSON.parse(ta.value);
+   if(!Array.isArray(o.favoriter)||!Array.isArray(o.lista))throw new Error('fel format');
+   favs=new Set(o.favoriter);lista=o.lista.filter(id=>idx(id)>=0);
+   store.spara('favoriter',[...favs]);store.spara('lista',lista);
+   ritaChips();rita(sok.value);d.remove()}
+  catch(e){alert('Kunde inte läsa kopian: '+e.message)}};}
 // Fällbar meny. På mobil (≤720px) ligger listan över hela skärmen; att välja en
 // sång fäller bort den automatiskt. På desktop ger knappen sången hela bredden.
 const menyknapp=document.getElementById('menyknapp');
@@ -144,10 +260,29 @@ document.querySelectorAll('.omrknapp').forEach(k=>k.onclick=()=>{omr=k.dataset.o
  // högtidsfiltret hör till Övriga/Alla — i KTH-läget räcker bok + kapitel
  hogtid.style.display=(omr==='kth')?'none':'block';if(omr==='kth')hogtid.value='';
  fyllKapitel();rita(sok.value)});
-function rita(filter){poster.innerHTML='';const bok=bokval.value,ht=hogtid.value;
+function rita(filter){poster.innerHTML='';synliga=[];const bok=bokval.value,ht=hogtid.value;
+ // Kvällens lista har EGEN ordning (den man satt själv) och egen radlayout med
+ // flyttknappar — övriga vyer är bokstavsordnade.
+ if(visaLista){
+  if(!lista.length){poster.innerHTML='<p class="tomlista">Kvällens lista är tom. '
+   +'Öppna en visa och tryck <b>+ Kvällens lista</b>.</p>';kopiaknapp();return}
+  lista.forEach((id,pos)=>{const i=idx(id);if(i<0)return;const s=S[i];
+   const d=document.createElement('div');d.className='post setrad'+(i===vald?' vald':'');
+   d.innerHTML=`<span class="settxt">${pos+1}. ${s.t}${s.cho?' <span class="lack">♪</span>':''}</span>`
+    +'<button class="setop" data-op="upp" title="Flytta upp">↑</button>'
+    +'<button class="setop" data-op="ned" title="Flytta ned">↓</button>'
+    +'<button class="setop" data-op="bort" title="Ta bort ur listan">✕</button>';
+   d.querySelector('.settxt').onclick=()=>{vald=i;visa(i);rita(sok.value);
+    if(arMobil())satMeny(false);vy.scrollTop=0};
+   d.querySelectorAll('.setop').forEach(b=>b.onclick=e=>{e.stopPropagation();
+    const op=b.dataset.op;
+    if(op==='bort')vaxlaLista(id);else flytta(id,op==='upp'?-1:1)});
+   poster.appendChild(d)});
+  kopiaknapp();return}
  // bokstavsordning i vyn — posternas index i S röres inte (titelrättade poster ligger osorterat i arrayen)
  const ordning=S.map((_,i)=>i).sort((a,b)=>S[a].t.localeCompare(S[b].t,'sv'));
  ordning.forEach(i=>{const s=S[i];
+ if(visaFav&&!harFav(s.id))return;
  if(omr!=='alla'&&s.omr!==omr)return;
  if(ht&&!(s.taggar&&s.taggar.includes(ht)))return;
  if(bok&&!s.v.some(v=>v.bok===bok))return;
@@ -159,15 +294,26 @@ function rita(filter){poster.innerHTML='';const bok=bokval.value,ht=hogtid.value
   if(!(s.t.toLowerCase().includes(f)||s.alt.some(a=>a.toLowerCase().includes(f))
      ||s.mel.some(m=>m.toLowerCase().includes(f))||s.v.some(v=>(v.mel||'').toLowerCase().includes(f))
      ||s.v.some(v=>v.text.toLowerCase().includes(f))))return;}
+ synliga.push(s.id);
  const d=document.createElement('div');d.className='post'+(i===vald?' vald':'');
  const vb=bok?(s.v.find(v=>v.bok===bok)||{}):null;
  const info=s.omr==='ovr'?(s.taggar[0]||'Övriga'):(bok?(vb.sida?('s.'+vb.sida):(vb.visa?('nr '+vb.visa):'s.?')):s.n+' '+(s.n>1?'böcker':'bok'));
- d.innerHTML=`${s.t}${s.cho?' <span class="lack">♪</span>':''} <small>· ${info}</small>`;
+ d.innerHTML=`${harFav(s.id)?'<span class="stjarna">★</span> ':''}${s.t}${s.cho?' <span class="lack">♪</span>':''}`
+  +`${iLista(s.id)?' <small class="stjarna">· i listan</small>':''} <small>· ${info}</small>`;
  d.onclick=()=>{vald=i;visa(i);rita(sok.value);
   // på mobil täcker listan hela skärmen — fäll bort den så sången syns direkt
   if(arMobil())satMeny(false);
-  vy.scrollTop=0};poster.appendChild(d)})}
+  vy.scrollTop=0};poster.appendChild(d)});
+ if(visaFav)kopiaknapp()}
 function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+// Favorit- och listknappar i sångvyn. Ritar om samma vy (och samma flik) efteråt,
+// därav window.__ver — knapparnas läge ska synas direkt.
+function knappRad(s,i){return '<div class="postknappar">'
+ +`<button class="vyknapp${harFav(s.id)?' pa':''}" type="button" `
+ +`onclick="vaxlaFav('${s.id}');visa(${i},window.__ver)">`+(harFav(s.id)?'★ Favorit':'☆ Favorit')+'</button>'
+ +`<button class="vyknapp${iLista(s.id)?' pa':''}" type="button" `
+ +`onclick="vaxlaLista('${s.id}');visa(${i},window.__ver)">`
+ +(iLista(s.id)?'✓ I kvällens lista':'+ Kvällens lista')+'</button></div>'}
 function orddiff(a,b){const wa=a.split(/(\s+)/),wb=b.split(/(\s+)/);
  const m=wa.length,n=wb.length,L=[];for(let i=0;i<=m;i++)L.push(new Int16Array(n+1));
  for(let i=m-1;i>=0;i--)for(let j=n-1;j>=0;j--)L[i][j]=wa[i]===wb[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
@@ -191,8 +337,8 @@ function ritaCho(slug){const c=CHO[slug];if(!c)return'<p>(ackordfil saknas)</p>'
     `<span class="seg">${a?`<span class="ack">${esc(a)}</span>`:''}<span>${esc(t)}</span></span>`
    ).join('')+'</div>').join('')+'</div>'});
  return h}
-function visa(i,ver=0,diffmot=-1){const s=S[i];
- if(s.omr==='ovr'){let h=`<h2 class="songtitel">${esc(s.t)}</h2><div class="metadata">`;
+function visa(i,ver=0,diffmot=-1){const s=S[i];window.__ver=ver;
+ if(s.omr==='ovr'){let h=`<h2 class="songtitel">${esc(s.t)}</h2>`+knappRad(s,i)+'<div class="metadata">';
   if(s.mel.length)h+=`Melodi: ${esc(s.mel.join(' · '))}<br>`;
   if(s.upphov.length)h+=`Upphov: ${esc(s.upphov.join(' · '))}<br>`;
   if(s.kalla)h+=`<a href="${esc(s.kalla)}" target="_blank" rel="noopener">källa</a><br>`;h+='</div>';
@@ -202,7 +348,7 @@ function visa(i,ver=0,diffmot=-1){const s=S[i];
   h+=`<pre>${esc(s.v[0].text||'(text saknas)')}</pre>`;
   vy.innerHTML=h;vy.scrollTop=0;return}
  if(ver===0&&bokval.value){const k=s.v.findIndex(v=>v.bok===bokval.value);if(k>=0)ver=k;}
- let h=`<h2 class="songtitel">${esc(s.t)}</h2><div class="metadata">`;
+ let h=`<h2 class="songtitel">${esc(s.t)}</h2>`+knappRad(s,i)+'<div class="metadata">';
  if(s.alt.length)h+=`Även: ${esc(s.alt.join(' · '))}<br>`;
  if(s.mel.length)h+=`Melodi: ${esc(s.mel.join(' · '))}<br>`;
  if(s.upphov.length)h+=`Upphov: ${esc(s.upphov.join(' · '))}<br>`;
