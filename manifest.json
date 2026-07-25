@@ -1,0 +1,20 @@
+{
+ "name": "Snapsvisor",
+ "short_name": "Snapsvisor",
+ "start_url": ".",
+ "display": "standalone",
+ "background_color": "#faf6ee",
+ "theme_color": "#2e5339",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  }
+ ]
+}
