@@ -1,7 +1,7 @@
 <!doctype html><html lang="sv"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Snapsvisor</title>
+<title>Sångbok KTH</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#2e5339">
@@ -52,7 +52,7 @@ label{font-size:.85em;color:var(--blek)}.varnot{background:#fdf3d7;border:1px so
 #skal button{font:inherit;background:var(--gron);color:#fff;border:0;border-radius:8px;padding:10px 22px;cursor:pointer;margin-top:12px}
 #skal .fel{color:var(--rod);font-size:.9em}
 </style></head><body>
-<div id="lista"><h1>Snapsvisor<br><span class="underrubrik">KTH Maskin 1961–2013 &amp; klassiker · <span id="antal">…</span> visor</span></h1>
+<div id="lista"><h1>Sångbok KTH<br><span class="underrubrik">KTH Maskin 1961–2013 &amp; klassiker · <span id="antal">…</span> visor</span></h1>
 <div id="omrval"><span class="omrknapp vald" data-omr="alla">Alla</span><span class="omrknapp" data-omr="kth">KTH Maskin</span><span class="omrknapp" data-omr="ovr">Övriga</span></div>
 <select id="bokval"><option value="">Alla böcker</option><option value="1961">1961</option><option value="1975">1975</option><option value="1981">1981</option><option value="1985">1985</option><option value="1988">1988</option><option value="1991">1991</option><option value="1994">1994</option><option value="1995">1995</option><option value="2000">2000</option><option value="2004">2004</option><option value="2007">2007</option><option value="2010">2010</option><option value="2013">2013</option><option value="Phul 1991">Phul 1991</option></select>
 <select id="kapval"><option value="">Alla kapitel</option></select>
@@ -190,7 +190,7 @@ document.addEventListener('visibilitychange',ta);window.addEventListener('pointe
 /* ===== SKALLÄGE — publicerbart, innehåller noll sångtexter =====
    Data bor i Dropbox App Folder och läses efter inloggning (PKCE).
    Mönstret följer Pizzaindex scripts/shell_env.js. */
-const APP_KEY='__APP_KEY__';
+const APP_KEY='08zh7x71vqpmevs';
 const TOKEN_KEY='kthsangbok.tok';
 const b64url=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 function missingCapabilities(){const miss=[];
@@ -251,7 +251,7 @@ async function dbxJSON(path){
   throw new Error('Dropbox '+r.status+': '+txt.slice(0,120))}
  return r.json()}
 const skalEl=document.createElement('div');skalEl.id='skal';
-skalEl.innerHTML='<div class="ruta"><h1>Snapsvisor</h1><p id="skalmedd">Startar…</p><div id="skalknappar"></div></div>';
+skalEl.innerHTML='<div class="ruta"><h1>Sångbok KTH</h1><p id="skalmedd">Startar…</p><div id="skalknappar"></div></div>';
 document.body.appendChild(skalEl);
 function skalStatus(medd,knapp){document.getElementById('skalmedd').innerHTML=medd;
  const k=document.getElementById('skalknappar');k.innerHTML='';
