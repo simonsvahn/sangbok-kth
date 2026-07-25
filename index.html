@@ -353,6 +353,24 @@ function starta(data){S=data.sanger;CHO=data.cho;
  if(data.mel){MELODIER=data.mel;fyllMelodier()}
  fyllKapitel();
  document.getElementById('antal').textContent=S.length;rita('');skalEl.hidden=true}
+// Letar ny generation i bakgrunden medan sångerna redan syns. Mönstret är lånat
+// från Sångbok Gitarr, som gick i samma dike: en boot som returnerar ur cachen
+// utan att kolla gör att ny data ALDRIG når telefonen.
+async function kollaNytt(cachadGen){
+ // Gitarrs variant returnerar tyst när token saknas. Här säger vi till i stället —
+ // en app som visar gammal data utan att det syns är precis felet vi just lagade.
+ if(!Auth.token&&!await Auth.load())return visaRemsa(
+  'Visar sparad sånglista — logga in för att hämta uppdateringar.',
+  'Logga in',()=>Auth.begin().catch(e=>visaRemsa(e.message)));
+ try{
+  const man=await dbxJSON('/data/manifest.json');
+  if(!man||man.generation===cachadGen)return;
+  const data=await dbxJSON(man.payload.path);
+  await DBK.put('payload',data);await DBK.put('generation',man.generation);
+  visaRemsa('Ny version av sångboken finns.','Ladda om',()=>location.reload());
+ }catch(e){/* nätfel: cachen duger, men det ska synas att den är oläst */
+  visaRemsa('Kunde inte nå Dropbox: '+e.message+' Visar sparad sånglista.',
+   'Försök igen',()=>location.reload())}}
 async function boot(){
  // Dev-läge på localhost: payload från samma server, ingen inloggning.
  if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
@@ -360,6 +378,8 @@ async function boot(){
  const cachadGen=await DBK.get('generation');const cachad=await DBK.get('payload');
  let fel='';
  try{await Auth.complete()}catch(e){fel=e.message}
+ // Finns cache: visa sångerna genast (snabbt, funkar offline) och leta nytt i bakgrunden.
+ if(cachad&&!fel){starta(cachad);kollaNytt(cachadGen);return}
  if(!Auth.token){
   // Cachad data visas fortfarande (appen ska fungera offline), men ALDRIG tyst:
   // utan den här remsan går det inte att se att man kör på gammal data.

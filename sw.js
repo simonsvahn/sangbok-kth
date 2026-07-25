@@ -1,6 +1,6 @@
 // Sidan: nätverk först (nya publiceringar slår igenom direkt), cache som
 // offline-reserv. Ikoner/manifest: cache först. Payloaden cachar appen själv i IndexedDB.
-const CACHE='kthsangbok-skal-bb8ba3f44441';
+const CACHE='kthsangbok-skal-c17948a88d82';
 const FILER=['.','index.html','manifest.json','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILER)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(
