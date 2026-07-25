@@ -63,11 +63,14 @@ label{font-size:.85em;color:var(--blek)}.varnot{background:#fdf3d7;border:1px so
 <div id="poster"></div></div>
 <div id="vy"><p>Välj en sång i listan.</p></div>
 <script>
-let S=null,CHO=null,KAP=__KAP__,MELODIER=__MEL__;
+let S=null,CHO=null,KAP={},MELODIER=[];
 const poster=document.getElementById('poster'),vy=document.getElementById('vy'),sok=document.getElementById('sok'),bokval=document.getElementById('bokval'),kapval=document.getElementById('kapval'),melval=document.getElementById('melval'),bararack=document.getElementById('bararack'),hogtid=document.getElementById('hogtid');
 // melodirullistan: melodier med ≥2 visor, störst först (böjningsvarianter hopslagna)
-melval.innerHTML='<option value="">Alla melodier ('+MELODIER.length+')</option>'
- +MELODIER.map((m,i)=>'<option value="'+i+'">'+m[0]+'</option>').join('');
+// funktion (inte engångskod) — webbskalet startar med tom lista och fyller den
+// när payloaden hämtats ur Dropbox
+function fyllMelodier(){melval.innerHTML='<option value="">Alla melodier ('+MELODIER.length+')</option>'
+ +MELODIER.map((m,i)=>'<option value="'+i+'">'+m[0]+'</option>').join('');}
+fyllMelodier();
 let melVarianter=[];
 function valjMelodi(){melVarianter=melval.value===''?[]:(MELODIER[+melval.value]||['',[]])[1]}
 const harMelodi=(s,varianter)=>varianter.some(x=>s.mel.indexOf(x)>=0||s.v.some(v=>v.mel===x));
@@ -257,6 +260,10 @@ function skalStatus(medd,knapp){document.getElementById('skalmedd').innerHTML=me
  const k=document.getElementById('skalknappar');k.innerHTML='';
  if(knapp){const b=document.createElement('button');b.textContent=knapp.text;b.onclick=knapp.fn;k.appendChild(b)}}
 function starta(data){S=data.sanger;CHO=data.cho;
+ // kapitel- och melodifiltren följer med payloaden (skalet byggs med tomma)
+ if(data.kap)KAP=data.kap;
+ if(data.mel){MELODIER=data.mel;fyllMelodier()}
+ fyllKapitel();
  document.getElementById('antal').textContent=S.length;rita('');skalEl.hidden=true}
 async function boot(){
  // Dev-läge på localhost: payload från samma server, ingen inloggning.
