@@ -246,12 +246,17 @@ document.addEventListener('visibilitychange',ta);window.addEventListener('pointe
    Data bor i Dropbox App Folder och läses efter inloggning (PKCE).
    Mönstret följer Pizzaindex scripts/shell_env.js. */
 const APP_KEY='08zh7x71vqpmevs';
+// localStorage, INTE sessionStorage: sessionStorage töms när fliken/hemskärmsappen
+// stängs, så varje kallstart blev utloggad — och eftersom boot() då föll tillbaka på
+// den cachade payloaden UTAN att säga något stod appen frusen på gammal data för
+// alltid (upptäckt 2026-07-25: telefonen visade morgonens payload trots ny synk).
 const TOKEN_KEY='kthsangbok.tok';
+const PKCE_KEY='kthsangbok.pkce';
 const b64url=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 function missingCapabilities(){const miss=[];
  if(!window.isSecureContext)miss.push('Sidan körs inte i säker kontext. Använd https eller http://localhost.');
  if(!(window.crypto&&crypto.subtle))miss.push('crypto.subtle saknas, så PKCE går inte att göra.');
- try{sessionStorage.setItem('_p','1');sessionStorage.removeItem('_p')}catch{miss.push('sessionStorage är blockerat.')}
+ try{localStorage.setItem('_p','1');localStorage.removeItem('_p')}catch{miss.push('localStorage är blockerat.')}
  return miss}
 const DBK={_p:null,
  open(){return this._p||(this._p=new Promise(res=>{let done=false;
@@ -268,23 +273,38 @@ const DBK={_p:null,
    tx.oncomplete=()=>res();tx.onerror=()=>res()}catch{res()}})}};
 const Auth={token:null,
  redirectUri(){return location.origin+location.pathname.replace(/index\.html$/,'')},
- load(){try{const raw=sessionStorage.getItem(TOKEN_KEY);if(!raw)return null;const t=JSON.parse(raw);
-  if(t.expires&&Date.now()>t.expires-60000){sessionStorage.removeItem(TOKEN_KEY);return null}
-  this.token=t.access_token;return this.token}catch{return null}},
+ _spara(t,gammal){const bo={access_token:t.access_token,
+   expires:Date.now()+(t.expires_in?t.expires_in*1000:14400000),
+   refresh_token:t.refresh_token||(gammal&&gammal.refresh_token)||null};
+  localStorage.setItem(TOKEN_KEY,JSON.stringify(bo));this.token=bo.access_token;return bo},
+ _lagrat(){try{return JSON.parse(localStorage.getItem(TOKEN_KEY)||'null')}catch{return null}},
+ // Åtkomsttoken lever ~4 h. Med token_access_type=offline får vi en refresh_token som
+ // förnyar den tyst — annars måste du logga in på nytt varje gång appen kallstartar.
+ async load(){const t=this._lagrat();if(!t)return null;
+  if(t.access_token&&t.expires&&Date.now()<t.expires-60000){this.token=t.access_token;return this.token}
+  if(!t.refresh_token)return null;
+  try{const body=new URLSearchParams({grant_type:'refresh_token',
+    refresh_token:t.refresh_token,client_id:APP_KEY});
+   const r=await fetch('https://api.dropboxapi.com/oauth2/token',{method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+   if(!r.ok)return null;
+   this._spara(await r.json(),t);return this.token}catch{return null}},
  async begin(){if(APP_KEY.indexOf('__')===0)throw new Error('App-nyckeln är inte ifylld i bygget — kör build_shell.py med nyckeln.');
   const verifier=b64url(crypto.getRandomValues(new Uint8Array(64)));
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));
   const state=b64url(crypto.getRandomValues(new Uint8Array(16)));
-  sessionStorage.setItem('kthsangbok.pkce',JSON.stringify({verifier,state,at:Date.now()}));
+  // PKCE-underlaget i localStorage: iOS kan ge hemskärmsappen en NY session när
+  // Dropbox skickar tillbaka dig, och då är sessionStorage redan tom.
+  localStorage.setItem(PKCE_KEY,JSON.stringify({verifier,state,at:Date.now()}));
   const u=new URL('https://www.dropbox.com/oauth2/authorize');
   u.searchParams.set('client_id',APP_KEY);u.searchParams.set('response_type','code');
   u.searchParams.set('code_challenge',b64url(digest));u.searchParams.set('code_challenge_method','S256');
   u.searchParams.set('redirect_uri',this.redirectUri());u.searchParams.set('state',state);
-  u.searchParams.set('token_access_type','online');location.assign(u.toString())},
+  u.searchParams.set('token_access_type','offline');location.assign(u.toString())},
  async complete(){const p=new URLSearchParams(location.search);const code=p.get('code');
   if(!code)return this.load();
-  let saved=null;try{saved=JSON.parse(sessionStorage.getItem('kthsangbok.pkce')||'null')}catch{}
-  sessionStorage.removeItem('kthsangbok.pkce');history.replaceState({},'',this.redirectUri());
+  let saved=null;try{saved=JSON.parse(localStorage.getItem(PKCE_KEY)||'null')}catch{}
+  localStorage.removeItem(PKCE_KEY);history.replaceState({},'',this.redirectUri());
   if(!saved)throw new Error('Inloggningen saknar sitt lokala underlag — försök igen.');
   if(Date.now()-saved.at>600000)throw new Error('Inloggningsförsöket är för gammalt — försök igen.');
   if(saved.state!==p.get('state'))throw new Error('state matchar inte — avbryter.');
@@ -293,14 +313,12 @@ const Auth={token:null,
   const r=await fetch('https://api.dropboxapi.com/oauth2/token',{method:'POST',
    headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
   if(!r.ok)throw new Error('Dropbox nekade inloggningen ('+r.status+')');
-  const t=await r.json();this.token=t.access_token;
-  sessionStorage.setItem(TOKEN_KEY,JSON.stringify({access_token:t.access_token,
-   expires:Date.now()+(t.expires_in?t.expires_in*1000:14400000)}));
+  this._spara(await r.json(),null);
   return this.token}};
 async function dbxJSON(path){
  const r=await fetch('https://content.dropboxapi.com/2/files/download',{method:'POST',
   headers:{Authorization:'Bearer '+Auth.token,'Dropbox-API-Arg':JSON.stringify({path})}});
- if(r.status===401){sessionStorage.removeItem(TOKEN_KEY);Auth.token=null;throw new Error('Sessionen gick ut — logga in igen.')}
+ if(r.status===401){localStorage.removeItem(TOKEN_KEY);Auth.token=null;throw new Error('Sessionen gick ut — logga in igen.')}
  if(!r.ok){const txt=await r.text();
   if(/missing_scope|required scope/i.test(txt))throw new Error('Appen saknar behörigheten files.content.read — kryssa i den under Permissions i Dropbox App Console och logga in igen.');
   if(/not_found/.test(txt))throw new Error('Sångdatan ligger inte i Dropbox-mappen än. Kör <code>scripts/sync_payload.sh</code> på datorn, vänta tills Dropbox synkat klart, och ladda om.');
@@ -312,6 +330,23 @@ document.body.appendChild(skalEl);
 function skalStatus(medd,knapp){document.getElementById('skalmedd').innerHTML=medd;
  const k=document.getElementById('skalknappar');k.innerHTML='';
  if(knapp){const b=document.createElement('button');b.textContent=knapp.text;b.onclick=knapp.fn;k.appendChild(b)}}
+// Remsa längst ned när appen kör på sparad data. Egna inline-stilar: skalets CSS
+// gäller bara inuti #skal, som är dolt när sångerna väl visas.
+function visaRemsa(medd,knapptext,fn){
+ let r=document.getElementById('remsa');
+ if(!r){r=document.createElement('div');r.id='remsa';
+  r.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;padding:10px 14px;'+
+   'background:#2e4a34;color:#f7f3e8;font:14px/1.4 system-ui,sans-serif;display:flex;'+
+   'gap:10px;align-items:center;justify-content:center;flex-wrap:wrap';
+  document.body.appendChild(r)}
+ r.innerHTML='<span>'+medd+'</span>';
+ if(knapptext){const b=document.createElement('button');b.textContent=knapptext;
+  b.style.cssText='padding:6px 12px;border:0;border-radius:6px;background:#f7f3e8;'+
+   'color:#2e4a34;font:inherit;font-weight:600';
+  b.onclick=fn;r.appendChild(b)}
+ const x=document.createElement('button');x.textContent='✕';x.setAttribute('aria-label','Stäng');
+ x.style.cssText='padding:6px 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit';
+ x.onclick=()=>r.remove();r.appendChild(x)}
 function starta(data){S=data.sanger;CHO=data.cho;
  // kapitel- och melodifiltren följer med payloaden (skalet byggs med tomma)
  if(data.kap)KAP=data.kap;
@@ -326,7 +361,11 @@ async function boot(){
  let fel='';
  try{await Auth.complete()}catch(e){fel=e.message}
  if(!Auth.token){
-  if(cachad)return starta(cachad);
+  // Cachad data visas fortfarande (appen ska fungera offline), men ALDRIG tyst:
+  // utan den här remsan går det inte att se att man kör på gammal data.
+  if(cachad){starta(cachad);return visaRemsa(
+   (fel?fel+' ':'')+'Visar sparad sånglista — logga in för att hämta uppdateringar.',
+   'Logga in',()=>Auth.begin().catch(e=>visaRemsa(e.message)))}
   const miss=missingCapabilities();
   if(miss.length)return skalStatus('<span class="fel">'+miss.join('<br>')+'</span>');
   return skalStatus((fel?'<span class="fel">'+fel+'</span><br>':'')+
@@ -341,7 +380,9 @@ async function boot(){
   await DBK.put('payload',data);await DBK.put('generation',man.generation);
   starta(data);
  }catch(e){
-  if(cachad)return starta(cachad);
+  // Samma regel här: hellre gammal data än ingen, men aldrig utan att det syns.
+  if(cachad){starta(cachad);return visaRemsa('Kunde inte nå Dropbox: '+e.message+
+   ' Visar sparad sånglista.','Försök igen',()=>location.reload())}
   skalStatus('<span class="fel">'+e.message+'</span>','') }}
 boot();
 
