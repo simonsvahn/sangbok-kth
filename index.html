@@ -65,6 +65,7 @@ h1 .underrubrik{font-size:.68em;font-weight:normal;color:var(--blek)}
 #hogtid{width:100%;padding:7px;font:inherit;border:1px solid var(--blek);border-radius:6px;background:#fff;margin-bottom:6px}
 .tagg{display:inline-block;background:#e8e0cf;border-radius:9px;padding:1px 9px;font-size:.75em;margin:0 4px 4px 0;color:#5a5344}
 .songtitel{color:var(--rod);font-size:1.6em;margin:0 0 2px}
+.notering{font-size:.86em;color:#5a6b5f;font-style:italic;margin:2px 0 6px}
 .metadata{color:var(--blek);font-size:.9em;margin-bottom:14px}
 .flik{display:inline-block;padding:4px 12px;margin:0 6px 6px 0;border:1px solid var(--gron);border-radius:14px;cursor:pointer;font-size:.85em}
 .flik.vald{background:var(--gron);color:#fff}
@@ -381,8 +382,13 @@ function visa(i,ver=0,diffmot=-1){const s=S[i];window.__ver=ver;
  const vmel=v.mel&&!s.mel.some(x=>x===v.mel)?v.mel:(v.mel||'');
  h+=`<div class="metadata">${v.kapitel||''}`
    +(vmel?`${v.kapitel?' · ':''}Mel: ${esc(vmel)}`:'')
+   +(v.tonart?` · ${esc(v.tonart)}`:'')
+   +(v.vupphov?` · ${esc(v.vupphov)}`:'')
    +(varn.length?` <span class="badge">${varn.join(', ')}</span>`:'')
-   +(hark.length?` <span class="badge harkomst">${hark.join(', ')}</span>`:'')+`</div>`;
+   +(hark.length?` <span class="badge harkomst">${hark.join(', ')}</span>`:'')+`</div>`
+   // bakgrunden (spexhärkomst, år, historia) på egen rad — den är kul att veta,
+   // och hör till visan även om den inte är sångtext (Simon 2026-07-26)
+   +(v.not?`<div class="notering">${esc(v.not)}</div>`:'');
  if(diffmot>=0&&diffmot!=ver&&s.v[diffmot])h+=`<pre>${orddiff(s.v[diffmot].text,v.text)}</pre><div class="metadata">Grönt = tillkommit i ${v.bok} jämfört med ${s.v[diffmot].bok}; rött = struket.</div>`;
  else h+=`<pre>${esc(v.text||'(text saknas)')}</pre>`;
  vy.innerHTML=h;vy.scrollTop=0}
